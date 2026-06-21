@@ -1,6 +1,6 @@
 from  pydantic import BaseModel,HttpUrl
 
-class CreatelinkRequest(BaseModel):
+class CreateLinkRequest(BaseModel):
     url:HttpUrl
 
 class LinkResponse(BaseModel):
