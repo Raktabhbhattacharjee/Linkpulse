@@ -9,4 +9,12 @@ class LinkService:
             original_url=url,
             short_code=short_code
         )
+    async def get_original_url(self,short_code:str):
+        link = await self.repository.get_by_short_code(short_code)
+        if not link:
+            return None
+        
+        return link.original_url
+
+        
     
