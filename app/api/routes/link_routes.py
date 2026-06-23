@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
 from app.services.link_service import LinkService
-from app.schemas.link import CreateLinkRequest, LinkResponse
+from app.schemas.link import CreateLinkRequest, LinkResponse, LinkStatsResponse
 from app.repositories.link_repository import LinkRepository
 
 router = APIRouter(prefix="/links", tags=["Links"])
@@ -26,3 +26,15 @@ async def redirect_link(short_code: str, db: AsyncSession = Depends(get_db)):
     if not original_url:
         raise HTTPException(status_code=404, detail="Link not found")
     return RedirectResponse(url=original_url)
+
+
+@router.get("/{short_code}/stats", response_model=LinkStatsResponse)
+async def get_link_stats(short_code: str, db: AsyncSession = Depends(get_db)):
+    service = LinkService(repository=LinkRepository(db))
+
+    link = await service.get_link_stats(short_code)
+
+    if not link:
+        raise HTTPException(status_code=404, detail="Link not found")
+
+    return link

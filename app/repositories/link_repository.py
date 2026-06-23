@@ -19,3 +19,9 @@ class LinkRepository:
         result = await self.db.execute(link_query)
         link = result.scalar_one_or_none()
         return link
+    async def update(self,link:Link)->Link:
+        self.db.add(link)
+        await self.db.commit()
+        await self.db.refresh(link)
+        return link
+        
