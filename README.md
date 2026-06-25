@@ -1,85 +1,105 @@
 # LinkPulse
 
-A production-style URL shortener built to deepen understanding of modern backend engineering principles and practices.
+LinkPulse is a lightweight URL shortener built with FastAPI, SQLAlchemy async, Alembic, and PostgreSQL. The project is designed as a clean backend learning example focused on layered architecture, async database access, and practical API design.
 
-## Overview
+## Why this project exists
 
-LinkPulse demonstrates how to build a scalable, maintainable backend service with clean architecture patterns, async database operations, and analytics tracking. This project prioritizes code clarity, architectural separation of concerns, and real-world backend engineering practices over feature complexity.
+LinkPulse is meant to demonstrate how a small but production-minded service can be structured with clear separation between:
 
-## Learning Goals
+- HTTP handling
+- business logic
+- data access
+- persistence and migrations
 
-- Clean layered architecture (routes → services → repositories)
-- Async/await for efficient I/O
-- Database migrations & schema versioning
-- Analytics tracking design
-- Type safety with Pydantic v2
+## Tech stack
 
-## Tech Stack
+| Layer      | Technology             |
+| ---------- | ---------------------- |
+| Language   | Python 3.13            |
+| API        | FastAPI                |
+| ORM        | SQLAlchemy 2.x (async) |
+| Database   | PostgreSQL             |
+| Migrations | Alembic                |
+| Validation | Pydantic               |
 
-| Component     | Technology             |
-| ------------- | ---------------------- |
-| Language      | Python 3.13            |
-| Web Framework | FastAPI                |
-| Database      | PostgreSQL             |
-| ORM           | SQLAlchemy 2.0 (async) |
-| Migrations    | Alembic                |
-| Validation    | Pydantic v2            |
-
-## Features
-
-- **URL Shortening**: Convert long URLs into short, memorable codes
-- **URL Redirection**: Resolve short codes back to original URLs
-- **Click Tracking**: Automatic tracking of access counts per link
-- **Last Access Timestamp**: Track when a link was last accessed
-- **Analytics API**: Retrieve usage statistics for shortened links
-- **Async Operations**: Non-blocking database queries for better concurrency
-- **Clean Architecture**: Clear separation between HTTP, business, and data layers
-- **Database Migrations**: Version-controlled schema changes
-
-## Architecture
-
-### Layered Design
+## Architecture overview
 
 ```mermaid
-graph TB
-    Client["HTTP Client"]
-    Routes["Routes Layer<br/>(link_routes.py)"]
-    Services["Service Layer<br/>(link_service.py)"]
-    Repos["Repository Layer<br/>(link_repository.py)"]
-    DB[(PostgreSQL<br/>links table)]
-
-    Client -->|POST /links<br/>GET /links/:id<br/>GET /links/:id/stats| Routes
-    Routes -->|validate<br/>deserialize| Services
-    Services -->|business logic<br/>shortening algorithm| Repos
-    Repos -->|SQL queries<br/>async execution| DB
-
-    style Routes fill:#e1f5ff
-    style Services fill:#fff3e0
-    style Repos fill:#f3e5f5
-    style DB fill:#e8f5e9
+flowchart LR
+    Client[Browser / API Client] -->|HTTP requests| API[FastAPI App]
+    API --> Routes[Routes Layer]
+    Routes --> Service[Service Layer]
+    Service --> Repo[Repository Layer]
+    Repo --> DB[(PostgreSQL)]
+    DB --> Repo
+    Repo --> Service
+    Service --> Routes
+    Routes --> API
+    API --> Client
 ```
 
-**Key principles:**
+The request flow is intentionally simple:
 
-- Routes only handle HTTP (validation, serialization)
-- Services contain business rules (URL shortening, analytics)
-- Repositories handle database queries only
-- Each layer is testable independently
+- Routes receive HTTP requests and return responses
+- Services contain the business rules for link creation and redirect behavior
+- Repositories manage SQLAlchemy access to the database
 
-## API Endpoints
+## Request lifecycle
 
-| Method | Endpoint                    | Description                                               |
-| ------ | --------------------------- | --------------------------------------------------------- |
-| `POST` | `/links`                    | Shorten a URL                                             |
-| `GET`  | `/links/{short_code}`       | Redirect to original URL (increments clicks)              |
-| `GET`  | `/links/{short_code}/stats` | Get link analytics (clicks, created_at, last_accessed_at) |
+```mermaid
+sequenceDiagram
+    participant Client as Client
+    participant API as FastAPI
+    participant Service as LinkService
+    participant Repo as LinkRepository
+    participant DB as PostgreSQL
 
-## Database
+    Client->>API: POST /links
+    API->>Service: create_link(url)
+    Service->>Service: generate short_code
+    Service->>Repo: create(original_url, short_code)
+    Repo->>DB: INSERT link
+    DB-->>Repo: saved row
+    Repo-->>Service: Link object
+    Service-->>API: Link response
+    API-->>Client: short link payload
+```
+
+```mermaid
+sequenceDiagram
+    participant Client as Client
+    participant API as FastAPI
+    participant Service as LinkService
+    participant Repo as LinkRepository
+    participant DB as PostgreSQL
+
+    Client->>API: GET /links/{short_code}
+    API->>Service: get_original_url(short_code)
+    Service->>Repo: get_by_short_code(short_code)
+    Repo->>DB: SELECT link
+    DB-->>Repo: link row
+    Repo-->>Service: link
+    Service->>Service: increment click_count
+    Service->>Repo: update(link)
+    Repo->>DB: UPDATE link
+    DB-->>Repo: updated row
+    Service-->>API: original URL
+    API-->>Client: redirect response
+```
+
+## API endpoints
+
+| Method | Endpoint                  | Description                  |
+| ------ | ------------------------- | ---------------------------- |
+| POST   | /links/                   | Create a new shortened link  |
+| GET    | /links/{short_code}       | Redirect to the original URL |
+| GET    | /links/{short_code}/stats | Fetch analytics for a link   |
+
+## Data model
 
 ```mermaid
 erDiagram
-    LINKS ||--o{ CLICKS : generates
-    LINKS {
+    LINK {
         uuid id PK
         string short_code UK
         text original_url
@@ -89,110 +109,101 @@ erDiagram
     }
 ```
 
-Key design decisions:
+The current model stores:
 
-- `short_code` indexed for O(1) lookups
-- `click_count` denormalized (avoids COUNT aggregations)
-- Timestamps in UTC for consistency
+- a unique short code for lookup
+- the original destination URL
+- click count and last access metadata
+- timestamps for auditing and analytics
 
-## Key Learning Points
+## Project structure
 
-**Service vs Repository:** Services contain business logic; repositories contain only SQL queries. Decoupling makes testing easier and business logic reusable.
+```text
+linkpulse/
+├── app/
+│   ├── api/
+│   │   └── routes/
+│   │       └── link_routes.py
+│   ├── core/
+│   │   └── config.py
+│   ├── db/
+│   │   ├── base.py
+│   │   ├── models.py
+│   │   └── session.py
+│   ├── repositories/
+│   │   └── link_repository.py
+│   ├── schemas/
+│   │   └── link.py
+│   ├── services/
+│   │   └── link_service.py
+│   └── main.py
+├── alembic/
+├── tests/
+├── alembic.ini
+├── pyproject.toml
+└── README.md
+```
 
-**Async Programming:** FastAPI + SQLAlchemy async driver handle non-blocking I/O. Multiple requests execute concurrently without thread overhead.
-
-**Database Migrations:** Alembic tracks schema changes. Each migration is reversible and version-controlled.
-
-**Analytics Design:** Click tracking updates happen asynchronously so redirects aren't delayed. Denormalized `click_count` avoids expensive aggregations.
-
-## Getting Started
+## Getting started
 
 ### Prerequisites
 
 - Python 3.13+
-- PostgreSQL 14+
-- pip or uv package manager
+- PostgreSQL running locally
+- pip or uv
 
-### Installation
+### 1. Install dependencies
 
-1. **Clone and install dependencies:**
+```bash
+pip install -e .
+pip install pytest httpx
+```
 
-   ```bash
-   git clone https://github.com/your-username/linkpulse.git
-   cd linkpulse
-   pip install -r requirements.txt
-   ```
+### 2. Configure environment variables
 
-2. **Set up environment variables:**
+Create a .env file in the project root with a database URL such as:
 
-   ```bash
-   cp .env.example .env
-   # Edit .env with your PostgreSQL connection string
-   ```
+```env
+DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/linkpulse
+```
 
-3. **Run database migrations:**
+### 3. Run database migrations
 
-   ```bash
-   alembic upgrade head
-   ```
+```bash
+alembic upgrade head
+```
 
-4. **Start the development server:**
+### 4. Start the development server
 
-   ```bash
-   uvicorn app.main:app --reload
-   ```
+```bash
+uvicorn app.main:app --reload
+```
 
-   The server runs at `http://localhost:8000`  
-   Interactive API docs available at `http://localhost:8000/docs`
+The API will be available at:
 
-### Running Tests
+- http://localhost:8000
+- http://localhost:8000/docs
+
+### 5. Run tests
 
 ```bash
 pytest tests/ -v
 ```
 
-## Project Structure
+## Learning highlights
 
-```
-linkpulse/
-├── app/
-│   ├── main.py                 # Application entry point
-│   ├── api/
-│   │   └── routes/
-│   │       └── link_routes.py  # HTTP endpoint handlers
-│   ├── core/
-│   │   └── config.py           # Configuration management
-│   ├── db/
-│   │   ├── models.py           # SQLAlchemy models
-│   │   ├── session.py          # Database session setup
-│   │   └── base.py             # Base class for models
-│   ├── repositories/
-│   │   └── link_repository.py  # Data access layer
-│   ├── schemas/
-│   │   └── link.py             # Pydantic models (validation)
-│   └── services/
-│       └── link_service.py     # Business logic layer
-├── alembic/                    # Database migrations
-│   └── versions/
-├── tests/                      # Test suite
-├── alembic.ini                 # Alembic configuration
-├── pyproject.toml              # Project metadata & dependencies
-└── README.md                   # This file
-```
+- Clean layered structure with routes, services, and repositories
+- Async database access with SQLAlchemy
+- Versioned schema changes through Alembic
+- Simple analytics flow based on click tracking and timestamps
 
-## Next Steps
+## Possible next steps
 
-- Redis caching for hot links
-- Click history table with geolocation
-- User authentication & link ownership
-- Rate limiting
-- Prometheus metrics & structured logging
-- Docker & Kubernetes deployment
+- Add Redis caching for frequently accessed links
+- Add authentication and link ownership
+- Add rate limiting and observability
+- Containerize the app with Docker
 
 ## License
 
 This project is open source and available under the MIT License.
-
----
-
-Built with ❤️ as a backend engineering learning project.
