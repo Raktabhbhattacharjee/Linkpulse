@@ -2,6 +2,8 @@ import secrets
 from app.repositories.link_repository import LinkRepository
 from datetime import datetime, timezone
 from app.core.logging import logger
+from app.exceptions.link import LinkNotFoundError
+
 
 class LinkService:
     def __init__(self, repository: LinkRepository):
@@ -9,14 +11,17 @@ class LinkService:
 
     async def create_link(self, url: str):
         short_code = secrets.token_urlsafe(6)
-        link =await self.repository.create(original_url=url, short_code=short_code)
-        logger.info("Short url created %s",link.short_code)
+        link = await self.repository.create(original_url=url, short_code=short_code)
+        logger.info("Short url created %s", link.short_code)
         return link
 
     async def get_original_url(self, short_code: str):
         link = await self.repository.get_by_short_code(short_code)
-        if not link:
-            return None
+        if link is None:
+            raise LinkNotFoundError(
+                f"Link with short code '{short_code}' was not found."
+            )
+
         link.click_count += 1
         link.last_accessed_at = datetime.now(timezone.utc)
         await self.repository.update(link)
@@ -25,7 +30,9 @@ class LinkService:
 
     async def get_link_stats(self, short_code: str):
         link = await self.repository.get_by_short_code(short_code)
-        if not link:
-            return None
+        if link is None:
+            raise LinkNotFoundError(
+                f"Link with short code '{short_code}' was not found."
+            )
+
         return link
-        
