@@ -18,9 +18,7 @@ class LinkService:
     async def get_original_url(self, short_code: str):
         link = await self.repository.get_by_short_code(short_code)
         if link is None:
-            raise LinkNotFoundError(
-                f"Link with short code '{short_code}' was not found."
-            )
+            raise LinkNotFoundError(short_code)
 
         link.click_count += 1
         link.last_accessed_at = datetime.now(timezone.utc)
@@ -31,8 +29,6 @@ class LinkService:
     async def get_link_stats(self, short_code: str):
         link = await self.repository.get_by_short_code(short_code)
         if link is None:
-            raise LinkNotFoundError(
-                f"Link with short code '{short_code}' was not found."
-            )
+            raise LinkNotFoundError(short_code)
 
         return link

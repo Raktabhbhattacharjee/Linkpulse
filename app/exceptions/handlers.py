@@ -1,11 +1,13 @@
 from fastapi import Request
 from fastapi.responses import JSONResponse
-from app.exceptions.link import LinkNotFoundError
 
-async def link_not_found_handler(request:Request , exc:LinkNotFoundError):
+from app.exceptions.base import AppError
+
+
+async def app_error_handler(request: Request, exc: AppError):
     return JSONResponse(
-        status_code=404,
+        status_code=exc.status_code,
         content={
-            "detail":str(exc)
+            "detail": str(exc)
         },
     )
