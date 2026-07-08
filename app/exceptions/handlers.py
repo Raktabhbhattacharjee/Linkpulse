@@ -8,6 +8,9 @@ async def app_error_handler(request: Request, exc: AppError):
     return JSONResponse(
         status_code=exc.status_code,
         content={
-            "detail": str(exc)
+            "error": {
+                "code": exc.error_code,
+                "message": exc.message,
+            }
         },
     )
