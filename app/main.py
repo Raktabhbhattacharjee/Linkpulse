@@ -1,13 +1,28 @@
 from fastapi import FastAPI
+from fastapi.exceptions import RequestValidationError
 
 from app.api.routes.link_routes import router as link_router
 from app.exceptions.base import AppError
-from app.exceptions.handlers import app_error_handler
+from app.exceptions.handlers import (
+    app_error_handler,
+    validation_error_handler,
+)
 
 app = FastAPI()
 
 app.include_router(link_router)
-app.add_exception_handler(AppError,app_error_handler)
+
+# Business exceptions
+app.add_exception_handler(
+    AppError,
+    app_error_handler,
+)
+
+# Request validation exceptions
+app.add_exception_handler(
+    RequestValidationError,
+    validation_error_handler,
+)
 
 
 @app.get("/health")
