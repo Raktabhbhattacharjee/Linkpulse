@@ -6,13 +6,15 @@ from app.db.session import get_db
 from app.services.link_service import LinkService
 from app.schemas.link import CreateLinkRequest, LinkResponse, LinkStatsResponse
 from app.repositories.link_repository import LinkRepository
+from app.dependencies import get_link_service
 
 router = APIRouter(prefix="/links", tags=["Links"])
 
 
 @router.post("/", response_model=LinkResponse)
-async def create_link(payload: CreateLinkRequest, db: AsyncSession = Depends(get_db)):
-    service = LinkService(repository=LinkRepository(db))
+async def create_link(
+    payload: CreateLinkRequest, service: LinkService = Depends(get_link_service)
+):
 
     link = await service.create_link(str(payload.url))
 
